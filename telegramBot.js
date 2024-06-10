@@ -5,7 +5,7 @@ const Product = require('./models/product');
 
 const token = '7295092624:AAG8ntYZuOC6_OdTWQGGxG17qaG-JJApq0Y'; //Sesuaikan dengan telegram bot tokennya
 const web3 = new Web3('HTTP://127.0.0.1:7545');
-const contractAddress = '0x212562b769F664aD7beC02EF81967293302C926F'; //Sesuaikan dengan Kontrak Address Masing2
+const contractAddress = '0x63Ea19f041A4D284EAC386Cc93f535655a7ADe00'; //Sesuaikan dengan Kontrak Address Masing2
 const supplyManagement = new web3.eth.Contract(SupplyManagementArtifact.abi, contractAddress);
 
 const bot = new TelegramBot(token, { polling: true });

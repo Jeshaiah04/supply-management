@@ -14,7 +14,7 @@ const connectDB = require('./database');
 connectDB();
 
 const web3 = new Web3('HTTP://127.0.0.1:7545'); // Change to the appropriate Ganache URL
-const contractAddress = '0x212562b769F664aD7beC02EF81967293302C926F'; // Change to the appropriate contract address
+const contractAddress = '0x63Ea19f041A4D284EAC386Cc93f535655a7ADe00'; // Change to the appropriate contract address
 const supplyManagement = new web3.eth.Contract(SupplyManagementArtifact.abi, contractAddress);
 
 // Function to save product ID mapping
@@ -98,6 +98,38 @@ app.get('/', async (req, res) => {
     const dbProducts = await Product.find();
 
     res.render('index', { products, dbProducts });
+  } catch (error) {
+    console.error('Gagal mengambil daftar produk:', error);
+    res.status(500).send('Gagal mengambil daftar produk. Silakan coba lagi nanti.');
+  }
+});
+
+app.get('/product', async (req, res) => {
+  try {
+    const productCount = await supplyManagement.methods.productCount().call();
+    const products = [];
+
+    for (let i = 1; i <= productCount; i++) {
+      try {
+        const product = await supplyManagement.methods.getProduct(i).call();
+        if (product[2] !== '0') {
+          products.push({
+            id: i,
+            name: product[0],
+            price: product[1],
+            quantity: product[2],
+          });
+        }
+      } catch (error) {
+        // Tangani kesalahan jika produk tidak ditemukan
+        console.error(`Gagal mengambil detail produk dengan ID ${i}:`, error);
+      }
+    }
+
+    // Ambil produk dari MongoDB
+    const dbProducts = await Product.find();
+
+    res.render('productList', { products, dbProducts });
   } catch (error) {
     console.error('Gagal mengambil daftar produk:', error);
     res.status(500).send('Gagal mengambil daftar produk. Silakan coba lagi nanti.');
