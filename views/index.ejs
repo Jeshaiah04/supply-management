@@ -1,68 +1,101 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Supply Management</title>
+  <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <h1>Supply Management</h1>
+  <header>
+    <h1>Daftar Produk dan Order</h1>
+  </header>
+  <main>
+    <section>
+      <h2>Tambah Produk Baru</h2>
+      <form action="/products" method="POST">
+        <label for="name">Nama:</label>
+        <input type="text" id="name" name="name" required>
+        <label for="description">Deskripsi:</label>
+        <input type="text" id="description" name="description">
+        <label for="price">Harga:</label>
+        <input type="number" id="price" name="price" required>
+        <label for="quantity">Jumlah:</label>
+        <input type="number" id="quantity" name="quantity" required>
+        <label for="category">Kategori:</label>
+        <input type="text" id="category" name="category">
+        <button type="submit">Tambah Produk</button>
+      </form>
+    </section>
 
-  <h2>Products (Smart Contract)</h2>
-  <ul>
-    <% products.forEach(function(product) { %>
-      <li>
-        ID: <%= product.id %><br>
-        Name: <%= product.name %><br>
-        Price: <%= product.price %><br>
-        Quantity: <%= product.quantity %><br>
-      </li>
-    <% }); %>
-  </ul>
-  
-  <h2>Products (MongoDB)</h2>
-  <ul>
-    <% dbProducts.forEach(function(product) { %>
-      <li>
-        ID: <%= product.id %><br>
-        Name: <%= product.name %><br>
-        Price: <%= product.price %><br>
-        Quantity: <%= product.quantity %><br>
-      </li>
-    <% }); %>
-  </ul>
+    <section>
+      <h2>Daftar Produk</h2>
+      <% products.forEach(product => { %>
+        <div class="product-card">
+          <h3><%= product.name %></h3>
+          <p>Deskripsi: <%= product.description %></p>
+          <p>Harga: <%= product.price %></p>
+          <p>Jumlah: <%= product.quantity %></p>
+          <p>Kategori: <%= product.category %></p>
+          <form action="/products/<%= product.id %>/update" method="POST">
+            <label for="name">Nama:</label>
+            <input type="text" id="name" name="name" value="<%= product.name %>" required>
+            <label for="description">Deskripsi:</label>
+            <input type="text" id="description" name="description" value="<%= product.description %>">
+            <label for="price">Harga:</label>
+            <input type="number" id="price" name="price" value="<%= product.price %>" required>
+            <label for="quantity">Jumlah:</label>
+            <input type="number" id="quantity" name="quantity" value="<%= product.quantity %>" required>
+            <label for="category">Kategori:</label>
+            <input type="text" id="category" name="category" value="<%= product.category %>">
+            <button type="submit">Perbarui</button>
+          </form>
+          <form action="/products/<%= product.id %>/delete" method="POST">
+            <button type="submit">Hapus</button>
+          </form>
+        </div>
+      <% }) %>
+    </section>
 
-  <ul>
-    <% products.forEach(function(product) { %>
-      <li>
-        ID: <%= product.id %><br>
-        Name: <%= product.name %><br>
-        Price: <%= product.price %><br>
-        Quantity: <%= product.quantity %><br>
-            <form action="/products/<%= product.id %>/update" method="POST">
-          <input type="text" name="name" value="<%= product.name %>" required>
-          <input type="number" name="price" value="<%= product.price %>" required>
-          <input type="number" name="quantity" value="<%= product.quantity %>" required>
-          <button type="submit">Update</button>
-        </form>
-        <form action="/products/<%= product.id %>/delete" method="POST">
-          <button type="submit">Delete</button>
-        </form>
-      </li>
-    <% }); %>
-  </ul>
+    <section>
+      <h2>Tambah Order Baru</h2>
+      <form action="/orders" method="POST">
+        <label for="productName">Pilih Produk:</label>
+        <select name="productName" id="productName">
+          <% products.forEach(function(product) { %>
+            <option value="<%= product.name %>"><%= product.name %></option>
+          <% }) %>
+        </select>
+        <label for="quantity">Jumlah:</label>
+        <input type="number" name="quantity" id="quantity" required>
+        <button type="submit">Tambah Order</button>
+      </form>      
+    </section>
 
-  <h2>Add Product</h2>
-  <form action="/products" method="POST">
-    <label for="name">Name:</label>
-    <input type="text" id="name" name="name" required><br>
-
-    <label for="price">Price:</label>
-    <input type="number" id="price" name="price" required><br>
-
-    <label for="quantity">Quantity:</label>
-    <input type="number" id="quantity" name="quantity" required><br>
-
-    <button type="submit">Add Product</button>
-  </form>
-
+    <section>
+      <h2>Daftar Order</h2>
+      <% orders.forEach(order => { %>
+        <div class="order-card">
+          <h3>Order ID: <%= order.id %></h3>
+          <p>ID Produk: <%= order.productId %></p>
+          <p>Jumlah: <%= order.quantity %></p>
+          <p>Pembeli: <%= order.buyer %></p>
+          <p>Status: <%= order.status %></p>
+          <form action="/orders/<%= order.id %>/update" method="POST">
+            <label for="status">Status:</label>
+            <select id="status" name="status">
+              <option value="pending" <%= order.status === 'pending' ? 'selected' : '' %>>Pending</option>
+              <option value="shipped" <%= order.status === 'shipped' ? 'selected' : '' %>>Shipped</option>
+              <option value="delivered" <%= order.status === 'delivered' ? 'selected' : '' %>>Delivered</option>
+            </select>
+            <button type="submit">Perbarui</button>
+          </form>
+          <form action="/orders/<%= order.id %>/delete" method="POST">
+            <button type="submit">Hapus</button>
+          </form>
+        </div>
+      <% }) %>
+    </section>
+  </main>
 </body>
 </html>

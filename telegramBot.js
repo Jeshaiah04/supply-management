@@ -2,15 +2,15 @@ const TelegramBot = require('node-telegram-bot-api');
 const Web3 = require('web3');
 const SupplyManagementArtifact = require('./artifacts/contracts/SupplyManagement.sol/SupplyManagement.json');
 const Product = require('./models/product');
+const ProductIdMapping = require('./models/ProductIdMapping');
 
-const token = '7295092624:AAG8ntYZuOC6_OdTWQGGxG17qaG-JJApq0Y'; //Sesuaikan dengan telegram bot tokennya
+const token = '7292794381:AAEYIZXkdb3ljL_-ainkzFuvoD0iU1Z0hcA';
 const web3 = new Web3('HTTP://127.0.0.1:7545');
-const contractAddress = '0x63Ea19f041A4D284EAC386Cc93f535655a7ADe00'; //Sesuaikan dengan Kontrak Address Masing2
+const contractAddress = '0xB16ba7911F24AaB85D23434A3Fc8C2ca53960619';
 const supplyManagement = new web3.eth.Contract(SupplyManagementArtifact.abi, contractAddress);
 
 const bot = new TelegramBot(token, { polling: true });
 
-// Pesan sambutan default
 const welcomeMessage = `
 Selamat datang di Supply Management Bot!
 
@@ -22,52 +22,49 @@ Berikut adalah perintah yang tersedia:
 Silakan pilih perintah yang ingin Anda jalankan.
 `;
 
-// Handler untuk perintah /start
 bot.onText(/\/start/, async (msg) => {
   const chatId = msg.chat.id;
   await bot.sendMessage(chatId, welcomeMessage);
 });
 
-// Handler untuk setiap pesan yang diterima
 bot.on('message', async (msg) => {
   const chatId = msg.chat.id;
   await bot.sendMessage(chatId, welcomeMessage);
 });
 
-// Handler untuk perintah /products
 bot.onText(/\/products/, async (msg) => {
   const chatId = msg.chat.id;
   const products = await Product.find();
 
   let response = 'Daftar Produk:\n\n';
   for (const product of products) {
-    response += `ID: ${product._id}\nNama: ${product.name}\nHarga: ${product.price}\nJumlah: ${product.quantity}\n\n`;
+    response += `ID: ${product._id}\nNama: ${product.name}\nDeskripsi: ${product.description}\nHarga: ${product.price}\nJumlah: ${product.quantity}\nKategori: ${product.category}\n\n`;
   }
 
   await bot.sendMessage(chatId, response);
 });
 
-// Handler untuk perintah /add
 bot.onText(/\/add/, async (msg) => {
   const chatId = msg.chat.id;
-  await bot.sendMessage(chatId, 'Silakan masukkan detail produk dalam format: /add_product <nama> <harga> <jumlah>');
+  await bot.sendMessage(chatId, 'Silakan masukkan detail produk dalam format: /add_product <nama> <deskripsi> <harga> <jumlah> <kategori>');
 });
 
-// Handler untuk perintah /add_product
-bot.onText(/\/add_product (.+) (\d+) (\d+)/, async (msg, match) => {
+bot.onText(/\/add_product (.+) (.+) (\d+) (\d+) (.+)/, async (msg, match) => {
   const chatId = msg.chat.id;
   const name = match[1];
-  const price = parseInt(match[2]);
-  const quantity = parseInt(match[3]);
+  const description = match[2];
+  const price = parseInt(match[3]);
+  const quantity = parseInt(match[4]);
+  const category = match[5];
 
   try {
     const accounts = await web3.eth.getAccounts();
-    const gas = await supplyManagement.methods.addProduct(name, price, quantity).estimateGas({ from: accounts[0] });
-    const gasLimit = Math.ceil(gas * 1.2); // Menambahkan 20% margin gas
+    const gas = await supplyManagement.methods.addProduct(name, description, price, quantity, category).estimateGas({ from: accounts[0] });
+    const gasLimit = Math.ceil(gas * 1.2);
 
-    await supplyManagement.methods.addProduct(name, price, quantity).send({ from: accounts[0], gas: gasLimit });
+    await supplyManagement.methods.addProduct(name, description, price, quantity, category).send({ from: accounts[0], gas: gasLimit });
 
-    const product = new Product({ name, price, quantity });
+    const product = new Product({ name, description, price, quantity, category });
     await product.save();
 
     await bot.sendMessage(chatId, 'Produk berhasil ditambahkan!');
@@ -77,7 +74,6 @@ bot.onText(/\/add_product (.+) (\d+) (\d+)/, async (msg, match) => {
   }
 });
 
-// Handler untuk perintah /delete_product
 bot.onText(/\/delete_product (.+)/, async (msg, match) => {
   const chatId = msg.chat.id;
   const mongoId = match[1];
@@ -92,7 +88,7 @@ bot.onText(/\/delete_product (.+)/, async (msg, match) => {
 
     const accounts = await web3.eth.getAccounts();
     const gas = await supplyManagement.methods.deleteProduct(smartContractId).estimateGas({ from: accounts[0] });
-    const gasLimit = Math.ceil(gas * 1.2); // Menambahkan 20% margin gas
+    const gasLimit = Math.ceil(gas * 1.2);
 
     await supplyManagement.methods.deleteProduct(smartContractId).send({ from: accounts[0], gas: gasLimit });
 
@@ -106,10 +102,13 @@ bot.onText(/\/delete_product (.+)/, async (msg, match) => {
   }
 });
 
-// Validasi refresh log bot
+async function getSmartContractIdFromMongoId(mongoId) {
+  const idMapping = await ProductIdMapping.findOne({ mongoId });
+  return idMapping ? idMapping.smartContractId : null;
+}
+
 async function refreshBotLogs() {
   try {
-    // Hapus log bot sebelumnya
     await TelegramBot.clearTextListener();
     await TelegramBot.clearReplyListeners();
     await TelegramBot.clearCallbackQueryListeners();
@@ -120,5 +119,4 @@ async function refreshBotLogs() {
   }
 }
 
-// Panggil fungsi refreshBotLogs saat bot dinyalakan
 refreshBotLogs();

@@ -1,21 +1,42 @@
 require('./telegramBot');
 const mongoose = require('mongoose');
 const express = require('express');
-const app = express();
+const path = require('path');
 const Web3 = require('web3');
-const contract = require('@truffle/contract');
+const session = require('express-session');
+const bcrypt = require('bcrypt');
 const SupplyManagementArtifact = require('./artifacts/contracts/SupplyManagement.sol/SupplyManagement.json');
 const Product = require('./models/product');
 const ProductIdMapping = require('./models/ProductIdMapping');
-const Counter = require('./models/counter'); // Add this line
+const Counter = require('./models/counter');
+const Order = require('./models/order');
+const User = require('./models/user');
 const connectDB = require('./database');
+
+// Initialize express app
+const app = express();
 
 // Connect to MongoDB
 connectDB();
 
 const web3 = new Web3('HTTP://127.0.0.1:7545'); // Change to the appropriate Ganache URL
-const contractAddress = '0x63Ea19f041A4D284EAC386Cc93f535655a7ADe00'; // Change to the appropriate contract address
+const contractAddress = '0xB16ba7911F24AaB85D23434A3Fc8C2ca53960619'; // Change to the appropriate contract address
 const supplyManagement = new web3.eth.Contract(SupplyManagementArtifact.abi, contractAddress);
+
+// Configure session
+app.use(session({
+  secret: 'your_secret_key', // Change to a stronger secret
+  resave: false,
+  saveUninitialized: true
+}));
+
+// Middleware for static files and URL encoding
+app.use(express.urlencoded({ extended: true }));
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Set view engine
+app.set('view engine', 'ejs');
+app.set('views', './views');
 
 // Function to save product ID mapping
 async function saveProductIdMapping(smartContractId, mongoId) {
@@ -50,15 +71,15 @@ initializeCounter().catch(err => console.error("Failed to initialize counter:", 
 // Listen to contract events
 supplyManagement.events.ProductAdded()
   .on('data', async (event) => {
-    const { id, name, price, quantity } = event.returnValues;
-    await addProductHandler(id, name, price, quantity);
+    const { id, name, description, price, quantity, category, createdAt } = event.returnValues;
+    await addProductHandler(id, name, description, price, quantity, category, createdAt);
   })
   .on('error', console.error);
 
 supplyManagement.events.ProductUpdated()
   .on('data', async (event) => {
-    const { id, name, price, quantity } = event.returnValues;
-    await updateProductHandler(id, name, price, quantity);
+    const { id, name, description, price, quantity, category } = event.returnValues;
+    await updateProductHandler(id, name, description, price, quantity, category);
   })
   .on('error', console.error);
 
@@ -69,14 +90,43 @@ supplyManagement.events.ProductDeleted()
   })
   .on('error', console.error);
 
-app.set('view engine', 'ejs');
-app.use(express.urlencoded({ extended: true }));
+supplyManagement.events.OrderPlaced()
+  .on('data', async (event) => {
+    const { id, productId, quantity, buyer, status } = event.returnValues;
+    await addOrderHandler(id, productId, quantity, buyer, status);
+  })
+  .on('error', console.error);
 
-app.get('/', async (req, res) => {
+supplyManagement.events.OrderFulfilled()
+  .on('data', async (event) => {
+    const { id, status } = event.returnValues;
+    await updateOrderHandler(id, status);
+  })
+  .on('error', console.error);
+
+// Middleware for session verification
+function auth(req, res, next) {
+  if (req.session.user) {
+    next();
+  } else {
+    res.status(401).send('Unauthorized');
+  }
+}
+
+// Middleware for role verification
+function isOwner(req, res, next) {
+  if (req.session.user && req.session.user.role === 'owner') {
+    next();
+  } else {
+    res.status(403).send('Forbidden: Only owners can perform this action');
+  }
+}
+
+// Route to display products and orders (accessible to all authenticated users)
+app.get('/', auth, async (req, res) => {
   try {
     const productCount = await supplyManagement.methods.productCount().call();
     const products = [];
-
     for (let i = 1; i <= productCount; i++) {
       try {
         const product = await supplyManagement.methods.getProduct(i).call();
@@ -84,83 +134,211 @@ app.get('/', async (req, res) => {
           products.push({
             id: i,
             name: product[0],
-            price: product[1],
-            quantity: product[2],
+            description: product[1],
+            price: product[2],
+            quantity: product[3],
+            category: product[4],
+            createdAt: product[5]
           });
         }
       } catch (error) {
-        // Tangani kesalahan jika produk tidak ditemukan
-        console.error(`Gagal mengambil detail produk dengan ID ${i}:`, error);
+        console.error(`Failed to fetch product details for ID ${i}:`, error);
       }
     }
 
-    // Ambil produk dari MongoDB
-    const dbProducts = await Product.find();
-
-    res.render('index', { products, dbProducts });
-  } catch (error) {
-    console.error('Gagal mengambil daftar produk:', error);
-    res.status(500).send('Gagal mengambil daftar produk. Silakan coba lagi nanti.');
-  }
-});
-
-app.get('/product', async (req, res) => {
-  try {
-    const productCount = await supplyManagement.methods.productCount().call();
-    const products = [];
-
-    for (let i = 1; i <= productCount; i++) {
+    const orderCount = await supplyManagement.methods.orderCount().call();
+    const orders = [];
+    for (let i = 1; i <= orderCount; i++) {
       try {
-        const product = await supplyManagement.methods.getProduct(i).call();
-        if (product[2] !== '0') {
-          products.push({
+        const order = await supplyManagement.methods.getOrder(i).call();
+        if (order[2] !== '0x0000000000000000000000000000000000000000') {
+          orders.push({
             id: i,
-            name: product[0],
-            price: product[1],
-            quantity: product[2],
+            productId: order[0],
+            quantity: order[1],
+            buyer: order[2],
+            status: order[3]
           });
         }
       } catch (error) {
-        // Tangani kesalahan jika produk tidak ditemukan
-        console.error(`Gagal mengambil detail produk dengan ID ${i}:`, error);
+        console.error(`Failed to fetch order details for ID ${i}:`, error);
       }
     }
 
-    // Ambil produk dari MongoDB
-    const dbProducts = await Product.find();
-
-    res.render('productList', { products, dbProducts });
+    res.render('index', { products, orders });
   } catch (error) {
-    console.error('Gagal mengambil daftar produk:', error);
-    res.status(500).send('Gagal mengambil daftar produk. Silakan coba lagi nanti.');
+    console.error('Failed to fetch data:', error);
+    res.status(500).send('Failed to fetch data. Please try again later.');
   }
 });
 
-app.post('/products/:smartContractId/update', async (req, res) => {
-  const smartContractId = parseInt(req.params.smartContractId);
-  const { name, price, quantity } = req.body;
+// Handler functions
+async function addProductHandler(id, name, description, price, quantity, category, createdAt) {
+  const product = new Product({
+    name,
+    description,
+    price,
+    quantity,
+    category,
+    createdAt
+  });
+  const savedProduct = await product.save();
+
+  await saveProductIdMapping(id, savedProduct._id);
+}
+
+async function updateProductHandler(id, name, description, price, quantity, category) {
+  const mongoId = await getMongoIdFromSmartContractId(id);
+  await Product.findByIdAndUpdate(mongoId, { name, description, price, quantity, category });
+}
+
+async function deleteProductHandler(id) {
+  const mongoId = await getMongoIdFromSmartContractId(id);
+  await Product.findByIdAndDelete(mongoId);
+  await ProductIdMapping.findOneAndDelete({ smartContractId: id });
+}
+
+async function addOrderHandler(id, productId, quantity, buyer, status) {
+  const order = new Order({
+    orderId: id,
+    productId,
+    quantity,
+    buyer,
+    status
+  });
+  await order.save();
+}
+
+async function updateOrderHandler(id, status) {
+  await Order.findOneAndUpdate({ orderId: id }, { status });
+}
+
+// Route for user registration
+app.post('/register', async (req, res) => {
+  const { username, password, role } = req.body;
   const accounts = await web3.eth.getAccounts();
 
   try {
-    // Periksa apakah produk dengan smartContractId ada dalam kontrak pintar
+    // Dapatkan alamat berdasarkan urutan di Ganache
+    const userCount = await User.countDocuments();
+    const userAddress = accounts[userCount];
+
+    // Simpan pengguna ke MongoDB
+    const user = new User({ username, password, userAddress, role });
+    await user.save();
+    console.log('User registered successfully');
+
+    res.send('User registered successfully');
+  } catch (error) {
+    console.error('Error registering user:', error);
+    res.status(500).send('Error registering user');
+  }
+});
+
+// Route for user login
+app.post('/login', async (req, res) => {
+  const { username, password } = req.body;
+
+  try {
+    const user = await User.findOne({ username });
+    if (!user) {
+      return res.status(404).send('User not found');
+    }
+
+    user.comparePassword(password, (err, isMatch) => {
+      if (err) {
+        return res.status(500).send('Error comparing password');
+      }
+
+      if (!isMatch) {
+        return res.status(401).send('Incorrect password');
+      }
+
+      // Set session user
+      req.session.user = { userAddress: user.userAddress, role: user.role };
+      res.send('Login successful');
+    });
+  } catch (error) {
+    console.error('Error logging in:', error);
+    res.status(500).send('Error logging in');
+  }
+});
+
+// Route to display register form
+app.get('/register', (req, res) => {
+  res.render('register');
+});
+
+// Route to display login form
+app.get('/login', (req, res) => {
+  res.render('login');
+});
+
+// Route to display user profile
+app.get('/profile', auth, (req, res) => {
+  res.render('profile', { user: req.session.user });
+});
+
+// Route for user logout
+app.get('/logout', (req, res) => {
+  req.session.destroy(err => {
+    if (err) {
+      return res.status(500).send('Failed to logout');
+    }
+    res.redirect('/login');
+  });
+});
+
+// Route to add a new product (only for store owners)
+app.post('/products', auth, isOwner, async (req, res) => {
+  const { name, description, price, quantity, category } = req.body;
+  const userAddress = req.session.user.userAddress;
+
+  try {
+    const counter = await Counter.findOneAndUpdate(
+      { name: 'productId' },
+      { $inc: { seq: 1 } },
+      { new: true, upsert: true }
+    );
+
+    const id = counter.seq;
+    const gas = await supplyManagement.methods.addProduct(name, description, price, quantity, category).estimateGas({ from: userAddress });
+    const gasLimit = Math.ceil(gas * 1.2);
+
+    const result = await supplyManagement.methods.addProduct(name, description, price, quantity, category).send({ from: userAddress, gas: gasLimit });
+
+    const product = new Product({ name, description, price, quantity, category });
+    const savedProduct = await product.save();
+
+    const smartContractId = result.events.ProductAdded.returnValues.id;
+    await saveProductIdMapping(smartContractId, savedProduct._id);
+
+    res.redirect('/');
+  } catch (error) {
+    console.error('Error adding product:', error);
+    res.status(500).send('Error adding product');
+  }
+});
+
+// Route to update a product (only for store owners)
+app.post('/products/:smartContractId/update', auth, isOwner, async (req, res) => {
+  const smartContractId = parseInt(req.params.smartContractId);
+  const { name, description, price, quantity, category } = req.body;
+  const userAddress = req.session.user.userAddress;
+
+  try {
     const product = await supplyManagement.methods.getProduct(smartContractId).call();
     if (product[2] === '0') {
-      // Produk tidak ditemukan dalam kontrak pintar
       return res.status(404).send('Produk tidak ditemukan');
     }
 
-    // Estimasi gas yang diperlukan untuk transaksi
-    const gas = await supplyManagement.methods.updateProduct(smartContractId, name, price, quantity).estimateGas({ from: accounts[0] });
+    const gas = await supplyManagement.methods.updateProduct(smartContractId, name, description, price, quantity, category).estimateGas({ from: userAddress });
+    const gasLimit = Math.ceil(gas * 1.2);
 
-    // Tentukan batas gas yang lebih tinggi
-    const gasLimit = Math.ceil(gas * 1.2); // Tingkatkan batas gas sebesar 20%
+    await supplyManagement.methods.updateProduct(smartContractId, name, description, price, quantity, category).send({ from: userAddress, gas: gasLimit });
 
-    // Perbarui produk dalam kontrak pintar dengan batas gas yang lebih tinggi
-    await supplyManagement.methods.updateProduct(smartContractId, name, price, quantity).send({ from: accounts[0], gas: gasLimit });
-
-    // Perbarui produk dalam MongoDB
     const mongoId = await getMongoIdFromSmartContractId(smartContractId);
-    await Product.findByIdAndUpdate(mongoId, { name, price, quantity });
+    await Product.findByIdAndUpdate(mongoId, { name, description, price, quantity, category });
 
     res.redirect('/');
   } catch (error) {
@@ -169,23 +347,19 @@ app.post('/products/:smartContractId/update', async (req, res) => {
   }
 });
 
-
-app.post('/products/:smartContractId/delete', async (req, res) => {
+// Route to delete a product (only for store owners)
+app.post('/products/:smartContractId/delete', auth, isOwner, async (req, res) => {
   const smartContractId = parseInt(req.params.smartContractId);
-  const accounts = await web3.eth.getAccounts();
+  const userAddress = req.session.user.userAddress;
 
   try {
-    // Periksa apakah produk dengan smartContractId ada dalam kontrak pintar
     const product = await supplyManagement.methods.getProduct(smartContractId).call();
     if (product[2] === '0') {
-      // Produk tidak ditemukan dalam kontrak pintar
       return res.status(404).send('Produk tidak ditemukan');
     }
 
-    // Hapus produk dari kontrak pintar
-    await supplyManagement.methods.deleteProduct(smartContractId).send({ from: accounts[0] });
+    await supplyManagement.methods.deleteProduct(smartContractId).send({ from: userAddress });
 
-    // Hapus produk dari MongoDB
     const mongoId = await getMongoIdFromSmartContractId(smartContractId);
     await Product.findByIdAndDelete(mongoId);
     await ProductIdMapping.findOneAndDelete({ mongoId });
@@ -197,45 +371,87 @@ app.post('/products/:smartContractId/delete', async (req, res) => {
   }
 });
 
-
-app.post('/products', async (req, res) => {
-  const { name, price, quantity } = req.body;
-  const accounts = await web3.eth.getAccounts();
+// Route to place a new order (accessible to all authenticated users)
+app.post('/orders', auth, async (req, res) => {
+  const { productName, quantity } = req.body;
+  const userAddress = req.session.user.userAddress;
 
   try {
-    // Fetch and increment the counter
-    const counter = await Counter.findOneAndUpdate(
-      { name: 'productId' },
-      { $inc: { seq: 1 } },
-      { new: true, upsert: true }
-    );
+    console.log('Mencari ID produk berdasarkan nama:', productName);
+    const productId = await supplyManagement.methods.getProductIdByName(productName).call();
+    console.log('ID produk yang ditemukan:', productId);
 
-    const id = counter.seq; // Use the incremented sequence number as the product ID
+    if (productId === 0) {
+      console.error('Produk tidak ditemukan di kontrak pintar:', productName);
+      return res.status(404).send('Produk tidak ditemukan di kontrak pintar');
+    }
 
-    // Estimate gas needed for the transaction
-    const gas = await supplyManagement.methods.addProduct(name, price, quantity).estimateGas({ from: accounts[0] });
+    console.log('Estimasi gas untuk placeOrder');
+    const gas = await supplyManagement.methods.placeOrder(productName, quantity).estimateGas({ from: userAddress });
+    const gasLimit = Math.ceil(gas * 1.2);
+    console.log('Gas limit yang digunakan:', gasLimit);
 
-    // Set a higher gas limit
-    const gasLimit = Math.ceil(gas * 1.2); // Increase gas limit by 20%
+    console.log('Mengirim transaksi placeOrder');
+    const result = await supplyManagement.methods.placeOrder(productName, quantity).send({ from: userAddress, gas: gasLimit });
+    console.log('Transaksi placeOrder berhasil:', result);
 
-    // Add product to smart contract with higher gas limit
-    const result = await supplyManagement.methods.addProduct(name, price, quantity).send({ from: accounts[0], gas: gasLimit });
+    const orderId = result.events.OrderPlaced.returnValues.orderId;
+    console.log('Order ID dari event:', orderId);
 
-    // Save new product to MongoDB
-    const product = new Product({ name, price, quantity });
-    const savedProduct = await product.save();
-
-    // Save product ID mapping
-    const smartContractId = result.events.ProductAdded.returnValues.id;
-    await saveProductIdMapping(smartContractId, savedProduct._id);
+    const order = new Order({
+      orderId: orderId,
+      productName,
+      quantity,
+      buyer: userAddress,
+      status: 'pending'
+    });
+    await order.save();
+    console.log('Order berhasil disimpan di database');
 
     res.redirect('/');
   } catch (error) {
-    console.error('Error adding product:', error);
-    res.status(500).send('Error adding product');
+    console.error('Error placing order:', error);
+    res.status(500).send('Error placing order');
   }
 });
 
+// Route to update an order (accessible to all authenticated users)
+app.post('/orders/:orderId/update', auth, async (req, res) => {
+  const orderId = parseInt(req.params.orderId);
+  const { status } = req.body;
+  const userAddress = req.session.user.userAddress;
+
+  try {
+    const gas = await supplyManagement.methods.fulfillOrder(orderId, status).estimateGas({ from: userAddress });
+    const gasLimit = Math.ceil(gas * 1.2);
+
+    await supplyManagement.methods.fulfillOrder(orderId, status).send({ from: userAddress, gas: gasLimit });
+
+    await Order.findOneAndUpdate({ orderId }, { status });
+
+    res.redirect('/');
+  } catch (error) {
+    console.error('Gagal memperbarui order:', error);
+    res.status(500).send('Gagal memperbarui order');
+  }
+});
+
+// Route to delete an order (accessible to all authenticated users)
+app.post('/orders/:orderId/delete', auth, async (req, res) => {
+  const orderId = parseInt(req.params.orderId);
+  const userAddress = req.session.user.userAddress;
+
+  try {
+    await supplyManagement.methods.deleteOrder(orderId).send({ from: userAddress });
+
+    await Order.findOneAndDelete({ orderId });
+
+    res.redirect('/');
+  } catch (error) {
+    console.error('Gagal menghapus order:', error);
+    res.status(500).send('Gagal menghapus order. Silakan coba lagi nanti.');
+  }
+});
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
