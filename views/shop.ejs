@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@100;200;300;400;500;600;700;800;900&display=swap"
+        rel="stylesheet">
+    <link href="vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/fontawesome.css">
+    <link rel="stylesheet" href="assets/css/templatemo-lugx-gaming.css">
+    <link rel="stylesheet" href="assets/css/owl.css">
+    <link rel="stylesheet" href="assets/css/animate.css">
+    <link rel="stylesheet" href="https://unpkg.com/swiper@7/swiper-bundle.min.css" />
+</head>
+
+<body>
+    <div id="js-preloader" class="js-preloader">
+        <div class="preloader-inner">
+            <span class="dot"></span>
+            <div class="dots">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+        </div>
+    </div>
+    <%- include('header') %>
+        <div class="page-heading header-text">
+            <div class="container">
+                <div class="row">
+                    <div class="col-lg-12">
+                        <h3>Our Shop</h3>
+                        <span class="breadcrumb"><a href="#">Home</a> > Shop</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section trending">
+            <div class="container">
+                <ul class="trending-filter">
+                    <li>
+                        <a class="is_active" href="#!" data-filter="*">Show All</a>
+                    </li>
+                    <li>
+                        <a href="#!" data-filter=".adv">Roblox</a>
+                    </li>
+                    <li>
+                        <a href="#!" data-filter=".str">Mobile Legend</a>
+                    </li>
+                    <li>
+                        <a href="#!" data-filter=".rac">Free Fire</a>
+                    </li>
+                </ul>
+                <div class="row trending-box">
+                    <% products.forEach(function(product) { %>
+                   
+                        <div class="col-lg-3 col-md-6 align-self-center mb-30 trending-items col-md-6 adv">
+                            <div class="item">
+                                <div class="thumb">
+                                    <a href="product-details.html"><img src="assets/images/trending-01.jpg" alt=""></a>
+                                    <span class="price">
+                                        <% const additionalPrice = 2; %>
+                                        <% const originalPrice = parseFloat(product.price) + additionalPrice; %>    
+                                        <p><em>$<%= originalPrice.toFixed(0) %></em>
+                                        </p>$<%= product.price %>
+                                        
+                                    </span>
+                                </div>
+                                <div class="down-content">
+                                    <span class="category">Stock: <%= product.quantity %></span>
+                                    <h4>
+                                        <%= product.name %>
+                                    </h4>
+                                    <a href="product-details.html"><i class="fa fa-shopping-bag"></i></a>
+                                </div>
+                            </div>
+                
+                        </div>
+                   <% }); %>
+                   <div class="col-lg-3 col-md-6 align-self-center mb-30 trending-items col-md-6 str">
+                    <div class="item">
+                        <div class="thumb">
+                            <a href="product-details.html"><img src="assets/images/coomingsoon.png" alt=""></a>
+                            <span class="price">
+                                <p> 
+                                </p>
+                            </span>
+                        </div>
+                        <div class="down-content">
+                            <span class="category">Mobile Legend</span>
+                            <h4>
+                                COOMING SOON
+                            </h4>
+                            <a href="product-details.html"><i class="fa fa-shopping-bag"></i></a>
+                        </div>
+                    </div>
+                   </div>
+                   <div class="col-lg-3 col-md-6 align-self-center mb-30 trending-items col-md-6 rac">
+                    <div class="item">
+                        <div class="thumb">
+                            <a href="product-details.html"><img src="assets/images/coomingsoon.png" alt=""></a>
+                            <span class="price">
+                                <p> 
+                                </p>
+                            </span>
+                        </div>
+                        <div class="down-content">
+                            <span class="category">Free Fire</span>
+                            <h4>
+                                COOMING SOON
+                            </h4>
+                            <a href="product-details.html"><i class="fa fa-shopping-bag"></i></a>
+                        </div>
+                    </div>
+                   </div>
+        
+                </div>
+                </div>
+                <div class="row">
+                    <div class="col-lg-12">
+                        <ul class="pagination">
+                            <li><a href="is_active"> &lt; </a></li>
+                            <li><a class="" href="#">1</a></li>
+                            <li><a href="#">2</a></li>
+                            <li><a href="#">3</a></li>
+                            <li><a href="#"> &gt; </a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="d-flex justify-content-center mt-5">
+            <form action="/orders" method="POST">
+                <div class="">
+                    <div class=" my-1">
+                        <label class="sr-only" for="inlineFormInputGroupUsername">Name</label>
+                        <div class="input-group">
+                            <div class="input-group-prepend">
+                                <div class="input-group-text">ID</div>
+                            </div>
+                            <select name="productName" id="productName">
+                                <% products.forEach(function(product) { %>
+                                  <option value="<%= product.name %>"><%= product.name %></option>
+                                <% }) %>
+                              </select>
+                        </div>
+                    </div>
+                    <div class=" my-1">
+                        <label class="sr-only" for="inlineFormInputGroupUsername">Qty</label>
+                        <div class="input-group">
+                            <div class="input-group-prepend">
+                                <div class="input-group-text">Qty</div>
+                            </div>
+                            <input type="text" class="form-control" id="quantity" name="quantity" placeholder="Quantity" required>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-center">
+                        <button type="submit" class="btn btn-primary">Add Order</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+        
+        <%- include('footer') %>
+            <script src="vendor/jquery/jquery.min.js"></script>
+            <script src="vendor/bootstrap/js/bootstrap.min.js"></script>
+            <script src="assets/js/isotope.min.js"></script>
+            <script src="assets/js/owl-carousel.js"></script>
+            <script src="assets/js/counter.js"></script>
+            <script src="assets/js/custom.js"></script>
+</body>
+
+</html>

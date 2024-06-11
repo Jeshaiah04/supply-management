@@ -13,6 +13,8 @@ const Order = require('./models/order');
 const User = require('./models/user');
 const connectDB = require('./database');
 
+
+
 // Initialize express app
 const app = express();
 
@@ -20,7 +22,7 @@ const app = express();
 connectDB();
 
 const web3 = new Web3('HTTP://127.0.0.1:7545'); // Change to the appropriate Ganache URL
-const contractAddress = '0xB16ba7911F24AaB85D23434A3Fc8C2ca53960619'; // Change to the appropriate contract address
+const contractAddress = '0x64b66C14f5B9A2C9191Eb4e14Cc2BE75a08289f5'; // Change to the appropriate contract address
 const supplyManagement = new web3.eth.Contract(SupplyManagementArtifact.abi, contractAddress);
 
 // Configure session
@@ -109,7 +111,7 @@ function auth(req, res, next) {
   if (req.session.user) {
     next();
   } else {
-    res.status(401).send('Unauthorized');
+    res.render('login');
   }
 }
 
@@ -165,7 +167,7 @@ app.get('/', auth, async (req, res) => {
       }
     }
 
-    res.render('index', { products, orders });
+    res.render('home', { products, orders });
   } catch (error) {
     console.error('Failed to fetch data:', error);
     res.status(500).send('Failed to fetch data. Please try again later.');
@@ -256,7 +258,7 @@ app.post('/login', async (req, res) => {
 
       // Set session user
       req.session.user = { userAddress: user.userAddress, role: user.role };
-      res.send('Login successful');
+      res.redirect('/');
     });
   } catch (error) {
     console.error('Error logging in:', error);
@@ -451,6 +453,237 @@ app.post('/orders/:orderId/delete', auth, async (req, res) => {
     console.error('Gagal menghapus order:', error);
     res.status(500).send('Gagal menghapus order. Silakan coba lagi nanti.');
   }
+});
+app.get('/product', async (req, res) => {
+  try {
+    const productCount = await supplyManagement.methods.productCount().call();
+    const products = [];
+
+    for (let i = 1; i <= productCount; i++) {
+      try {
+        const product = await supplyManagement.methods.getProduct(i).call();
+        if (product[2] !== '0') {
+          products.push({
+            id: i,
+            name: product[0],
+            price: product[1],
+            quantity: product[2],
+          });
+        }
+      } catch (error) {
+        // Tangani kesalahan jika produk tidak ditemukan
+        console.error(`Gagal mengambil detail produk dengan ID ${i}:`, error);
+      }
+    }
+
+    // Ambil produk dari MongoDB
+    const dbProducts = await Product.find();
+
+    res.render('shop', { products, dbProducts });
+  } catch (error) {
+    console.error('Gagal mengambil daftar produk:', error);
+    res.status(500).send('Gagal mengambil daftar produk. Silakan coba lagi nanti.');
+  }
+});
+
+app.get('/productmanagement', async (req, res) => {
+  try {
+    const productCount = await supplyManagement.methods.productCount().call();
+    const products = [];
+    for (let i = 1; i <= productCount; i++) {
+      try {
+        const product = await supplyManagement.methods.getProduct(i).call();
+        if (product[2] !== '0') {
+          products.push({
+            id: i,
+            name: product[0],
+            description: product[1],
+            price: product[2],
+            quantity: product[3],
+            category: product[4],
+            createdAt: product[5]
+          });
+        }
+      } catch (error) {
+        console.error(`Failed to fetch product details for ID ${i}:`, error);
+      }
+    }
+
+    const orderCount = await supplyManagement.methods.orderCount().call();
+    const orders = [];
+    for (let i = 1; i <= orderCount; i++) {
+      try {
+        const order = await supplyManagement.methods.getOrder(i).call();
+        if (order[2] !== '0x0000000000000000000000000000000000000000') {
+          orders.push({
+            id: i,
+            productId: order[0],
+            quantity: order[1],
+            buyer: order[2],
+            status: order[3]
+          });
+        }
+      } catch (error) {
+        console.error(`Failed to fetch order details for ID ${i}:`, error);
+      }
+    }
+
+    res.render('productList', { products, orders });
+  } catch (error) {
+    console.error('Failed to fetch data:', error);
+    res.status(500).send('Failed to fetch data. Please try again later.');
+  }
+});
+
+app.get('/product-management', auth, async (req, res) => {
+  try {
+    const productCount = await supplyManagement.methods.productCount().call();
+    const products = [];
+    for (let i = 1; i <= productCount; i++) {
+      try {
+        const product = await supplyManagement.methods.getProduct(i).call();
+        if (product[2] !== '0') {
+          products.push({
+            id: i,
+            name: product[0],
+            description: product[1],
+            price: product[2],
+            quantity: product[3],
+            category: product[4],
+            createdAt: product[5]
+          });
+        }
+      } catch (error) {
+        console.error(`Failed to fetch product details for ID ${i}:`, error);
+      }
+    }
+
+    const orderCount = await supplyManagement.methods.orderCount().call();
+    const orders = [];
+    for (let i = 1; i <= orderCount; i++) {
+      try {
+        const order = await supplyManagement.methods.getOrder(i).call();
+        if (order[2] !== '0x0000000000000000000000000000000000000000') {
+          orders.push({
+            id: i,
+            productId: order[0],
+            quantity: order[1],
+            buyer: order[2],
+            status: order[3]
+          });
+        }
+      } catch (error) {
+        console.error(`Failed to fetch order details for ID ${i}:`, error);
+      }
+    }
+
+    res.render('productList', { products, orders });
+  } catch (error) {
+    console.error('Failed to fetch data:', error);
+    res.status(500).send('Failed to fetch data. Please try again later.');
+  }
+});
+
+app.get('/shop', auth, async (req, res) => {
+  try {
+    const productCount = await supplyManagement.methods.productCount().call();
+    const products = [];
+    for (let i = 1; i <= productCount; i++) {
+      try {
+        const product = await supplyManagement.methods.getProduct(i).call();
+        if (product[2] !== '0') {
+          products.push({
+            id: i,
+            name: product[0],
+            description: product[1],
+            price: product[2],
+            quantity: product[3],
+            category: product[4],
+            createdAt: product[5]
+          });
+        }
+      } catch (error) {
+        console.error(`Failed to fetch product details for ID ${i}:`, error);
+      }
+    }
+
+    const orderCount = await supplyManagement.methods.orderCount().call();
+    const orders = [];
+    for (let i = 1; i <= orderCount; i++) {
+      try {
+        const order = await supplyManagement.methods.getOrder(i).call();
+        if (order[2] !== '0x0000000000000000000000000000000000000000') {
+          orders.push({
+            id: i,
+            productId: order[0],
+            quantity: order[1],
+            buyer: order[2],
+            status: order[3]
+          });
+        }
+      } catch (error) {
+        console.error(`Failed to fetch order details for ID ${i}:`, error);
+      }
+    }
+
+    res.render('shop', { products, orders });
+  } catch (error) {
+    console.error('Failed to fetch data:', error);
+    res.status(500).send('Failed to fetch data. Please try again later.');
+  }
+});
+
+app.get('/order', auth, async (req, res) => {
+  try {
+    const productCount = await supplyManagement.methods.productCount().call();
+    const products = [];
+    for (let i = 1; i <= productCount; i++) {
+      try {
+        const product = await supplyManagement.methods.getProduct(i).call();
+        if (product[2] !== '0') {
+          products.push({
+            id: i,
+            name: product[0],
+            description: product[1],
+            price: product[2],
+            quantity: product[3],
+            category: product[4],
+            createdAt: product[5]
+          });
+        }
+      } catch (error) {
+        console.error(`Failed to fetch product details for ID ${i}:`, error);
+      }
+    }
+
+    const orderCount = await supplyManagement.methods.orderCount().call();
+    const orders = [];
+    for (let i = 1; i <= orderCount; i++) {
+      try {
+        const order = await supplyManagement.methods.getOrder(i).call();
+        if (order[2] !== '0x0000000000000000000000000000000000000000') {
+          orders.push({
+            id: i,
+            productId: order[0],
+            quantity: order[1],
+            buyer: order[2],
+            status: order[3]
+          });
+        }
+      } catch (error) {
+        console.error(`Failed to fetch order details for ID ${i}:`, error);
+      }
+    }
+
+    res.render('order', { products, orders });
+  } catch (error) {
+    console.error('Failed to fetch data:', error);
+    res.status(500).send('Failed to fetch data. Please try again later.');
+  }
+});
+
+app.get('/contact', auth, (req, res) => {
+  res.render('contact', { user: req.session.user });
 });
 
 const PORT = process.env.PORT || 3000;

@@ -51,7 +51,7 @@ contract SupplyManagement {
     constructor() {
         owner = msg.sender;
     }
-
+    
     function registerUser(address _userAddress, string memory _role) public {
         require(msg.sender == owner, "Only owner can register users");
         users[_userAddress] = User(_userAddress, _role);
@@ -59,7 +59,7 @@ contract SupplyManagement {
     }
 
     function addProduct(string memory _name, string memory _description, uint256 _price, uint256 _quantity, string memory _category) public {
-        require(keccak256(abi.encodePacked(users[msg.sender].role)) == keccak256(abi.encodePacked("owner")), "Only owner can add products");
+      
         productCount++;
         uint256 _createdAt = block.timestamp;
         products[productCount] = Product(productCount, _name, _description, _price, _quantity, _category, _createdAt, true);

@@ -6,7 +6,7 @@ const ProductIdMapping = require('./models/ProductIdMapping');
 
 const token = '7292794381:AAEYIZXkdb3ljL_-ainkzFuvoD0iU1Z0hcA';
 const web3 = new Web3('HTTP://127.0.0.1:7545');
-const contractAddress = '0xB16ba7911F24AaB85D23434A3Fc8C2ca53960619';
+const contractAddress = '0x64b66C14f5B9A2C9191Eb4e14Cc2BE75a08289f5';
 const supplyManagement = new web3.eth.Contract(SupplyManagementArtifact.abi, contractAddress);
 
 const bot = new TelegramBot(token, { polling: true });
